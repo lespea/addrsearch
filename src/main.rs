@@ -72,9 +72,9 @@ async fn main() -> Result<()> {
         .collect::<std::result::Result<Vec<_>, _>>()
         .context("Failed to deserialize input records")?;
 
-    info!(records_count = records.len(), input_file = %args.input, "Starting geocoding process");
+    info!(records_count = records.len(), input_file = %args.input, "Starting geocoding process (v6)");
 
-    // Mapbox batch limit is 50 queries per request.
+    // Mapbox v6 batch limit is also often 50 or 100 queries per request.
     let chunks = records.chunks(50);
     let client = MapboxClient::new(token);
 
@@ -87,12 +87,10 @@ async fn main() -> Result<()> {
                 for (input, result) in addresses.into_iter().zip(batch_results) {
                     let record = OutputRecord {
                         input_address: input,
-                        matched_address: result.as_ref().map(|f| f.place_name.clone()),
+                        matched_address: result.as_ref().and_then(|f| f.properties.full_address.clone()),
                         longitude: result.as_ref().map(|f| f.geometry.coordinates[0]),
                         latitude: result.as_ref().map(|f| f.geometry.coordinates[1]),
-                        accuracy: result.as_ref().and_then(|f| {
-                            f.properties.as_ref().and_then(|p| p.accuracy.clone())
-                        }),
+                        confidence: result.as_ref().and_then(|f| f.properties.confidence.clone()),
                     };
                     wrt.serialize(record).context("Failed to serialize output record")?;
                 }
@@ -105,7 +103,7 @@ async fn main() -> Result<()> {
                         matched_address: None,
                         longitude: None,
                         latitude: None,
-                        accuracy: None,
+                        confidence: None,
                     })?;
                 }
             }

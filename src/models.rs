@@ -11,7 +11,12 @@ pub struct OutputRecord {
     pub matched_address: Option<String>,
     pub longitude: Option<f64>,
     pub latitude: Option<f64>,
-    pub accuracy: Option<String>,
+    pub confidence: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MapboxBatchResponse {
+    pub batch: Vec<MapboxFeatureCollection>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -22,9 +27,8 @@ pub struct MapboxFeatureCollection {
 
 #[derive(Debug, Deserialize)]
 pub struct Feature {
-    pub place_name: String,
     pub geometry: Geometry,
-    pub properties: Option<Properties>,
+    pub properties: Properties,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,5 +38,16 @@ pub struct Geometry {
 
 #[derive(Debug, Deserialize)]
 pub struct Properties {
-    pub accuracy: Option<String>,
+    pub full_address: Option<String>,
+    pub confidence: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MapboxBatchRequest {
+    pub queries: Vec<MapboxQuery>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MapboxQuery {
+    pub q: String,
 }
