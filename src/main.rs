@@ -34,6 +34,8 @@ struct Args {
     column_index: usize,
 }
 
+const BATCH_SIZE: usize = 1000;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize color-eyre for better panic and error reports
@@ -85,7 +87,7 @@ async fn main() -> Result<()> {
 
     info!(records_count = records.len(), input_file = %args.input, "Starting geocoding process (v6)");
 
-    let chunks = records.chunks(50);
+    let chunks = records.chunks(BATCH_SIZE);
     let client = MapboxClient::new(token);
 
     for (i, chunk) in chunks.enumerate() {
