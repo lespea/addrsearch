@@ -21,8 +21,8 @@ struct Args {
     #[arg(short, long)]
     output: Option<String>,
 
-    /// Bounding box to constrain search (min_lat,min_lon,max_lat,max_lon)
-    #[arg(short, long, default_value = "44.72540,-93.75217,45.35455,-92.84715")]
+    /// Bounding box to constrain search (min_lon,min_lat,max_lon,max_lat)
+    #[arg(short, long, default_value = "-93.75217,44.72540,-92.84715,45.35455")]
     bbox: Bbox,
 
     /// Assume the input CSV has no header row
@@ -63,8 +63,8 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Get the Mapbox token from the environment at runtime.
-    let token = env::var("MAPBOX_TOKEN").context("MAPBOX_TOKEN environment variable not set")?;
+    // Use the Mapbox token baked in at compile time.
+    let token = env!("MAPBOX_TOKEN").to_string();
 
     // Open the input file
     let mut rdr = csv::ReaderBuilder::new()

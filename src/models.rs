@@ -5,18 +5,15 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Bbox {
-    pub min_lat: f64,
     pub min_lon: f64,
-    pub max_lat: f64,
+    pub min_lat: f64,
     pub max_lon: f64,
+    pub max_lat: f64,
 }
 
 impl Bbox {
     pub fn to_mapbox_string(&self) -> String {
-        format!(
-            "{},{},{},{}",
-            self.min_lon, self.min_lat, self.max_lon, self.max_lat
-        )
+        format!("{},{},{},{}", self.min_lon, self.min_lat, self.max_lon, self.max_lat)
     }
 }
 
@@ -31,19 +28,18 @@ impl FromStr for Bbox {
             .map_err(|e| anyhow!("Failed to parse coordinate: {}", e))?;
 
         if parts.len() != 4 {
-            return Err(anyhow!(
-                "Bbox must have 4 coordinates: min_lat,min_lon,max_lat,max_lon"
-            ));
+            return Err(anyhow!("Bbox must have 4 coordinates: min_lon,min_lat,max_lon,max_lat"));
         }
 
         Ok(Bbox {
-            min_lat: parts[0],
-            min_lon: parts[1],
-            max_lat: parts[2],
-            max_lon: parts[3],
+            min_lon: parts[0],
+            min_lat: parts[1],
+            max_lon: parts[2],
+            max_lat: parts[3],
         })
     }
 }
+
 
 #[derive(Debug)]
 pub struct InputRecord {
