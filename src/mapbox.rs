@@ -1,4 +1,4 @@
-use crate::models::{Feature, MapboxBatchRequest, MapboxBatchResponse, MapboxQuery};
+use crate::models::{Feature, MapboxBatchResponse, MapboxQuery};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use tracing::{debug, error};
@@ -29,22 +29,20 @@ impl MapboxClient {
 
         let url = "https://api.mapbox.com/search/geocode/v6/batch";
 
-        let queries = addresses
+        let queries: Vec<MapboxQuery> = addresses
             .iter()
-            .map(|a| MapboxQuery { q: a.clone() })
+            .map(|a| MapboxQuery {
+                q: a.clone(),
+                bbox: bbox.map(|s| s.to_string()),
+                limit: Some(1),
+            })
             .collect();
-        let request_body = MapboxBatchRequest { queries };
-
-        let mut query_params = vec![("access_token", self.token.as_str())];
-        if let Some(bbox_val) = bbox {
-            query_params.push(("bbox", bbox_val));
-        }
 
         let resp = self
             .client
             .post(url)
-            .query(&query_params)
-            .json(&request_body)
+            .query(&[("access_token", &self.token)])
+            .json(&queries)
             .send()
             .await
             .context("Failed to send Mapbox v6 API request")?;

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 use crate::mapbox::MapboxClient;
-use crate::models::{InputRecord, OutputRecord};
+use crate::models::{InputRecord, OutputRecord, Bbox};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -21,9 +21,9 @@ struct Args {
     #[arg(short, long)]
     output: Option<String>,
 
-    /// Bounding box to constrain search (min_lon,min_lat,max_lon,max_lat)
-    #[arg(short, long, default_value = "-93.75217,44.72540,-92.84715,45.35455")]
-    bbox: String,
+    /// Bounding box to constrain search (min_lat,min_lon,max_lat,max_lon)
+    #[arg(short, long, default_value = "44.72540,-93.75217,45.35455,-92.84715")]
+    bbox: Bbox,
 
     /// Assume the input CSV has no header row
     #[arg(long)]
@@ -89,6 +89,7 @@ async fn main() -> Result<()> {
 
     let chunks = records.chunks(BATCH_SIZE);
     let client = MapboxClient::new(token);
+    let api_bbox_string = args.bbox.to_mapbox_string();
 
     for (i, chunk) in chunks.enumerate() {
         let addresses: Vec<String> = chunk.iter().map(|r| r.address.clone()).collect();
@@ -98,7 +99,7 @@ async fn main() -> Result<()> {
             "Geocoding batch"
         );
 
-        match client.geocode_batch(&addresses, Some(&args.bbox)).await {
+        match client.geocode_batch(&addresses, Some(&api_bbox_string)).await {
             Ok(batch_results) => {
                 for (input, result) in addresses.into_iter().zip(batch_results) {
                     let record = OutputRecord {
