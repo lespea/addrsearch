@@ -3,11 +3,10 @@ mod models;
 
 use clap::Parser;
 use color_eyre::eyre::{Context, Result, eyre};
-use csv::{Reader, Writer};
+use csv::Writer;
 use std::env;
-use std::io;
 use std::path::{Path, PathBuf};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::mapbox::MapboxClient;
 use crate::models::{InputRecord, OutputRecord};
@@ -25,6 +24,14 @@ struct Args {
     /// Bounding box to constrain search (min_lon,min_lat,max_lon,max_lat)
     #[arg(short, long, default_value = "-93.75217,44.72540,-92.84715,45.35455")]
     bbox: String,
+
+    /// Assume the input CSV has no header row
+    #[arg(long)]
+    no_header: bool,
+
+    /// The 0-based index of the column containing the address
+    #[arg(short, long, default_value_t = 0)]
+    column_index: usize,
 }
 
 #[tokio::main]
@@ -58,31 +65,27 @@ async fn main() -> Result<()> {
     let token = env::var("MAPBOX_TOKEN").context("MAPBOX_TOKEN environment variable not set")?;
 
     // Open the input file
-    let mut rdr = match Reader::from_path(&args.input) {
-        Ok(r) => r,
-        Err(e) => match e.kind() {
-            csv::ErrorKind::Io(io_err) if io_err.kind() == io::ErrorKind::NotFound => {
-                error!(
-                    "'{}' not found. Please provide a valid CSV with an 'address' column.",
-                    args.input
-                );
-                return Ok(());
-            }
-            _ => return Err(e.into()),
-        },
-    };
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(!args.no_header)
+        .from_path(&args.input)
+        .with_context(|| format!("Failed to open input file: {}", args.input))?;
+
+    let mut records = Vec::new();
+    for result in rdr.records() {
+        let record = result.context("Failed to read CSV record")?;
+        let address = record
+            .get(args.column_index)
+            .ok_or_else(|| eyre!("Column index {} out of bounds in CSV", args.column_index))?
+            .to_string();
+        records.push(InputRecord { address });
+    }
 
     let mut wrt = Writer::from_path(&output_path)
         .with_context(|| format!("Failed to create output file at {}", output_path.display()))?;
 
-    let records: Vec<InputRecord> = rdr
-        .deserialize()
-        .collect::<std::result::Result<Vec<_>, _>>()
-        .context("Failed to deserialize input records")?;
-
     info!(records_count = records.len(), input_file = %args.input, "Starting geocoding process (v6)");
 
-    let chunks = records.chunks(1000);
+    let chunks = records.chunks(50);
     let client = MapboxClient::new(token);
 
     for (i, chunk) in chunks.enumerate() {
