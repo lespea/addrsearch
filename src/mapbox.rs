@@ -16,7 +16,11 @@ impl MapboxClient {
         }
     }
 
-    pub async fn geocode_batch(&self, addresses: &[String]) -> Result<Vec<Option<Feature>>> {
+    pub async fn geocode_batch(
+        &self,
+        addresses: &[String],
+        bbox: Option<&str>,
+    ) -> Result<Vec<Option<Feature>>> {
         if addresses.is_empty() {
             return Ok(Vec::new());
         }
@@ -31,10 +35,15 @@ impl MapboxClient {
             .collect();
         let request_body = MapboxBatchRequest { queries };
 
+        let mut query_params = vec![("access_token", self.token.as_str())];
+        if let Some(bbox_val) = bbox {
+            query_params.push(("bbox", bbox_val));
+        }
+
         let resp = self
             .client
             .post(url)
-            .query(&[("access_token", &self.token)])
+            .query(&query_params)
             .json(&request_body)
             .send()
             .await
@@ -113,13 +122,19 @@ mod tests {
 
         let response: MapboxBatchResponse = serde_json::from_str(json_data).unwrap();
         assert_eq!(response.batch.len(), 2);
-        
+
         let res1 = &response.batch[0].features[0];
         assert_eq!(res1.geometry.coordinates, vec![-73.9857, 40.7484]);
-        assert_eq!(res1.properties.full_address.as_deref(), Some("350 5th Ave, New York, NY 10118, United States"));
-        
+        assert_eq!(
+            res1.properties.full_address.as_deref(),
+            Some("350 5th Ave, New York, NY 10118, United States")
+        );
+
         let res2 = &response.batch[1].features[0];
         assert_eq!(res2.geometry.coordinates, vec![-122.4194, 37.7749]);
-        assert_eq!(res2.properties.full_address.as_deref(), Some("Market St, San Francisco, CA 94103, United States"));
+        assert_eq!(
+            res2.properties.full_address.as_deref(),
+            Some("Market St, San Francisco, CA 94103, United States")
+        );
     }
 }

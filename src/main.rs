@@ -2,7 +2,7 @@ mod mapbox;
 mod models;
 
 use clap::Parser;
-use color_eyre::eyre::{eyre, Context, Result};
+use color_eyre::eyre::{Context, Result, eyre};
 use csv::{Reader, Writer};
 use std::env;
 use std::io;
@@ -21,6 +21,10 @@ struct Args {
     /// Output CSV file for geocoding results
     #[arg(short, long)]
     output: Option<String>,
+
+    /// Bounding box to constrain search (min_lon,min_lat,max_lon,max_lat)
+    #[arg(short, long, default_value = "-93.75217,44.72540,-92.84715,45.35455")]
+    bbox: String,
 }
 
 #[tokio::main]
@@ -40,7 +44,9 @@ async fn main() -> Result<()> {
     let output_path = match args.output {
         Some(o) => PathBuf::from(o),
         None => {
-            let stem = input_path.file_stem().ok_or_else(|| eyre!("Invalid input file name"))?;
+            let stem = input_path
+                .file_stem()
+                .ok_or_else(|| eyre!("Invalid input file name"))?;
             let mut pb = input_path.to_path_buf();
             pb.set_file_name(format!("{}_enriched", stem.to_string_lossy()));
             pb.set_extension("csv");
@@ -54,18 +60,20 @@ async fn main() -> Result<()> {
     // Open the input file
     let mut rdr = match Reader::from_path(&args.input) {
         Ok(r) => r,
-        Err(e) => {
-            match e.kind() {
-                csv::ErrorKind::Io(io_err) if io_err.kind() == io::ErrorKind::NotFound => {
-                    error!("'{}' not found. Please provide a valid CSV with an 'address' column.", args.input);
-                    return Ok(());
-                }
-                _ => return Err(e.into()),
+        Err(e) => match e.kind() {
+            csv::ErrorKind::Io(io_err) if io_err.kind() == io::ErrorKind::NotFound => {
+                error!(
+                    "'{}' not found. Please provide a valid CSV with an 'address' column.",
+                    args.input
+                );
+                return Ok(());
             }
-        }
+            _ => return Err(e.into()),
+        },
     };
 
-    let mut wrt = Writer::from_path(&output_path).with_context(|| format!("Failed to create output file at {}", output_path.display()))?;
+    let mut wrt = Writer::from_path(&output_path)
+        .with_context(|| format!("Failed to create output file at {}", output_path.display()))?;
 
     let records: Vec<InputRecord> = rdr
         .deserialize()
@@ -74,25 +82,33 @@ async fn main() -> Result<()> {
 
     info!(records_count = records.len(), input_file = %args.input, "Starting geocoding process (v6)");
 
-    // Mapbox v6 batch limit is also often 50 or 100 queries per request.
-    let chunks = records.chunks(50);
+    let chunks = records.chunks(1000);
     let client = MapboxClient::new(token);
 
     for (i, chunk) in chunks.enumerate() {
         let addresses: Vec<String> = chunk.iter().map(|r| r.address.clone()).collect();
-        info!(batch_index = i, batch_size = addresses.len(), "Geocoding batch");
+        info!(
+            batch_index = i,
+            batch_size = addresses.len(),
+            "Geocoding batch"
+        );
 
-        match client.geocode_batch(&addresses).await {
+        match client.geocode_batch(&addresses, Some(&args.bbox)).await {
             Ok(batch_results) => {
                 for (input, result) in addresses.into_iter().zip(batch_results) {
                     let record = OutputRecord {
                         input_address: input,
-                        matched_address: result.as_ref().and_then(|f| f.properties.full_address.clone()),
+                        matched_address: result
+                            .as_ref()
+                            .and_then(|f| f.properties.full_address.clone()),
                         longitude: result.as_ref().map(|f| f.geometry.coordinates[0]),
                         latitude: result.as_ref().map(|f| f.geometry.coordinates[1]),
-                        confidence: result.as_ref().and_then(|f| f.properties.confidence.clone()),
+                        confidence: result
+                            .as_ref()
+                            .and_then(|f| f.properties.confidence.clone()),
                     };
-                    wrt.serialize(record).context("Failed to serialize output record")?;
+                    wrt.serialize(record)
+                        .context("Failed to serialize output record")?;
                 }
             }
             Err(e) => {
