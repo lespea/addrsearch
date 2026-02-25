@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use std::str::FromStr;
 use anyhow::anyhow;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Bbox {
@@ -13,7 +13,10 @@ pub struct Bbox {
 
 impl Bbox {
     pub fn to_mapbox_string(&self) -> String {
-        format!("{},{},{},{}", self.min_lon, self.min_lat, self.max_lon, self.max_lat)
+        format!(
+            "{},{},{},{}",
+            self.min_lon, self.min_lat, self.max_lon, self.max_lat
+        )
     }
 }
 
@@ -28,7 +31,9 @@ impl FromStr for Bbox {
             .map_err(|e| anyhow!("Failed to parse coordinate: {}", e))?;
 
         if parts.len() != 4 {
-            return Err(anyhow!("Bbox must have 4 coordinates: min_lat,min_lon,max_lat,max_lon"));
+            return Err(anyhow!(
+                "Bbox must have 4 coordinates: min_lat,min_lon,max_lat,max_lon"
+            ));
         }
 
         Ok(Bbox {
@@ -79,6 +84,11 @@ pub struct Geometry {
 #[derive(Debug, Deserialize)]
 pub struct Properties {
     pub full_address: Option<String>,
+    pub match_code: Option<MatchCode>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MatchCode {
     pub confidence: Option<String>,
 }
 

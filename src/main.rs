@@ -111,7 +111,8 @@ async fn main() -> Result<()> {
                         latitude: result.as_ref().map(|f| f.geometry.coordinates[1]),
                         confidence: result
                             .as_ref()
-                            .and_then(|f| f.properties.confidence.clone()),
+                            .and_then(|f| f.properties.match_code.as_ref())
+                            .and_then(|m| m.confidence.clone()),
                     };
                     wrt.serialize(record)
                         .context("Failed to serialize output record")?;
